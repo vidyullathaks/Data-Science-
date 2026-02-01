@@ -1,0 +1,190 @@
+---
+title: "HW 8: Linear Models with Categorical Regressors"
+author: "Vidyullatha KS"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r init, include=F}
+library(ezids)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(results="markup", warning=FALSE, message=FALSE)
+options(scientific=T, digits = 3) 
+```
+
+```{r}
+# Load helper packages
+library(ezids)
+library(tidyverse)
+library(car)
+library(corrplot)
+library(broom)
+library(janitor)
+
+bikeorig <- read_csv("bikedata.csv") 
+glimpse(bikeorig)
+
+bikeorig <- bikeorig %>% janitor::clean_names()
+bike <- bikeorig %>%
+  select(-date, -casual_users, -registered_users)
+
+num_vars <- ncol(bike)
+int_cols <- sapply(bike, function(x) inherits(x, "integer"))
+num_ints <- sum(int_cols)
+
+bike16 <- bike %>% filter(hour == 16)
+
+categorical_vars <- c("hour", "season", "weather", "holiday", "workingday", "weekday") 
+categorical_vars <- categorical_vars[categorical_vars %in% names(bike16)]
+
+bike16_final <- bike16 %>%
+  mutate(across(all_of(categorical_vars), ~ factor(.x)))
+
+str(bike16_final)
+```
+
+# Question 0  
+**Pearson vs Spearman**  
+Read the article here: https://anyi-guo.medium.com/correlation-pearson-vs-spearman-c15e581c12ce and/or watch this video: https://www.youtube.com/watch?v=6uu4sFl1avE.  Answer this question *YES* if you read/watched about Pearson vs. Spearman correlation.
+
+```{r}
+answer_q0 <- "YES"
+answer_q0
+```
+
+# Question 1  
+**Compare the correlation matrix for all variables in `bike16` from HW 7 (where qualitative variables are not defined as factors) using the Pearson vs. using the Spearman methods.  Compare and comment on their differences.**
+```{r}
+num_bike16 <- bike16 %>% 
+  select(where(is.numeric)) %>%
+  select(-hour)
+
+cor_pearson <- cor(num_bike16, use="pairwise.complete.obs", method="pearson")
+cor_spearman <- cor(num_bike16, use="pairwise.complete.obs", method="spearman")
+
+corrplot(cor_pearson, method="color", main="Pearson Correlation (bike16)")
+corrplot(cor_spearman, method="color", main="Spearman Correlation (bike16)")
+
+round(cor_pearson - cor_spearman, 3)
+```
+
+#### **Comparison: Pearson vs. Spearman**
+
+**Pearson** measures linear relationships, while **Spearman** measures monotonic relationships using ranks. The difference matrix shows most correlations differ by less than 0.05, with the largest differences for humidity-related variables (0.085 and -0.067).
+
+**Interpretation:** Small differences (< 0.10) suggest relationships in this dataset are approximately linear rather than non-linear monotonic. Pearson correlation is appropriate for most analyses, though Spearman may be preferred for ordinal variables like weather_type and season.
+
+# Question 2  
+**Build a linear model using the `bike16_final` data from HW 7 to predict `Total Users` with `Temperature F` and `Season` as regressors.  State and interpret on the coefficient values and p-values for `Season` and the multiple R-squared value.  Also write down the model equation for the different levels of `Season`.**
+```{r}
+lm_q2 <- lm(total_users ~ temperature_f + season, data=bike16_final)
+summary(lm_q2)
+```
+
+#### **Model Interpretation**
+
+**Coefficients:**
+- **temperature_f: 5.58** (p < 2e-16) - Each 1°F increase adds 5.58 users
+- **season2 (Spring): -55.73** (p = 0.00021) - 56 fewer users than Winter
+- **season3 (Summer): 59.52** (p = 1.8e-06) - 60 more users than Winter (peak season)
+- **season4 (Fall): -16.01** (p = 0.28) - No significant difference from Winter
+
+**Model Fit:** R² = 0.375 (explains 37.5% of variance)
+
+**Model Equations:**
+1. Winter: Total_Users = -45.20 + 5.58 × Temperature_F
+2. Spring: Total_Users = -100.93 + 5.58 × Temperature_F
+3. Summer: Total_Users = 14.32 + 5.58 × Temperature_F
+4. Fall: Total_Users = -61.21 + 5.58 × Temperature_F
+
+All seasons have the same temperature slope (5.58) but different intercepts.
+
+# Question 3
+**Extend the Q2 model for `Total users` to also include the interaction term between the `Temperature F` and `Season`.  For the interaction terms, state and interpret the coefficient values and the p-values.  State and interpret the multiple R-squared value.  Also write down the model equation for the different levels of `Season`.** 
+
+Note: Please see the following link for more details on interactions: https://online.stat.psu.edu/stat501/lesson/8/8.6.
+```{r}
+lm_q3 <- lm(total_users ~ temperature_f * season, data=bike16_final)
+summary(lm_q3)
+```
+
+#### **Interaction Model Interpretation**
+
+**Main Effects:**
+- **temperature_f: 7.19** (p < 2e-16) - Winter baseline effect
+
+**Interaction Terms:**
+- **temperature_f:season2: -8.40** (p = 6.5e-09) - Spring's temperature effect is 8.4 users/°F weaker than Winter
+- **temperature_f:season3: -1.76** (p = 0.090) - Summer's effect is 1.76 users/°F weaker (marginally significant)
+- **temperature_f:season4: -0.35** (p = 0.77) - Fall has essentially the same temperature effect as Winter
+
+**Model Fit:** R² = 0.405 (improved from 0.375)
+
+**Model Equations:**
+1. Winter: Total_Users = -149.51 + 7.19 × Temperature_F
+2. Spring: Total_Users = 471.53 - 1.21 × Temperature_F
+3. Summer: Total_Users = 23.88 + 5.43 × Temperature_F
+4. Fall: Total_Users = -118.35 + 6.84 × Temperature_F
+
+**Key Insight:** Temperature's impact varies by season. Winter shows the strongest positive effect (7.19), while Spring shows a near-zero or negative slope (-1.21), suggesting temperature matters less when weather is already mild.
+
+# Question 4
+**Compare the model with only `Temperature F`, the model in Q2 to the model in Q3 using ANOVA.  Interpret and comment on your results. Which model would you use and why?**  
+```{r}
+lm_q1 <- lm(total_users ~ temperature_f, data=bike16_final)
+anova(lm_q1, lm_q2, lm_q3)
+```
+
+#### **Model Comparison**
+
+**ANOVA Results:**
+- Model 1 vs. Model 2: F(3, 725) = 28.5, p < 2e-16 - Adding season significantly improves fit
+- Model 2 vs. Model 3: F(3, 722) = 12.2, p = 8.1e-08 - Adding interactions further improves fit
+- R² progression: 0.309 → 0.375 → 0.405
+
+**Model Selection:** I would choose **Model 3** because:
+1. Statistically significant improvement over simpler models (p < 0.001)
+2. Explains 10% more variance than temperature alone
+3. Theoretically justified - temperature's effect should vary by season
+4. Reveals important patterns (e.g., Spring's negative temperature slope)
+5. Adjusted R² (0.399) close to R² (0.405) indicates no overfitting
+
+Model 2 could be preferred if simplicity is critical, but Model 3 provides superior predictions and insights.
+
+# Question 5   
+**Build a model with any three categorical variables and their interaction terms.  What are we really getting when only categorical variables (i.e. no quantitative variables) are used as regressors?  Describe and explain.** 
+  
+Note: I am not asking you to state and interpret all coefficients.  This is a conceptual question.  Can you consider regression of a quantitative variable on a set of factor variables as a different type of analysis?
+```{r}
+lm_q5 <- lm(total_users ~ season * weather_type * working_day, data=bike16_final)
+summary(lm_q5)
+```
+
+#### **Conceptual Analysis**
+
+**What are we getting?**
+
+Regression with only categorical predictors is mathematically equivalent to **ANOVA (Analysis of Variance)**:
+
+1. **Groups defined by categories:** Each combination of factor levels creates a group with its own mean
+2. **Coefficients = group mean differences:** The intercept (554.91) is the baseline group mean; other coefficients show how each group differs from baseline
+3. **Interactions test if effects depend on each other:** Example: season4:working_day (203.30, p = 0.0014) shows the working day effect differs in Fall vs. Winter
+
+**Model Fit:** R² = 0.384 (comparable to Model 2's 37.5%)
+
+**Answer:** Yes, this is **ANOVA**:
+- Without interactions: One-way or Factorial ANOVA
+- With interactions: Factorial ANOVA with interaction terms
+
+Regression and ANOVA are equivalent - regression shows coefficient differences from baseline, ANOVA tests if group means differ. Both answer: "Do group means differ significantly?"
+
+#### Reference:
+**Used Claude's assistance to interpret the results from the code chunk**

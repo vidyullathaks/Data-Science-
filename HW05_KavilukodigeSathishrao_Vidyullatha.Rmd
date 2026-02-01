@@ -1,0 +1,207 @@
+---
+title: "HW 5: Confidence Intervals"
+author: "Vidyullatha KS"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+# library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+# Load required libraries
+library(ezids)  
+library(dplyr)  # data manipulation
+library(ggplot2)  # plotting
+library(readr)   # reading CSV
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(results="markup", warning = F, message = F)
+options(scientific=T, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+# 4. Compose your answers using inline R code instead of using the code-block output as much as you can. 
+# 5. Your grade is also determined by the style. Even if you answer everything correctly, but the .html does not look appealing, you will not get full credit. Pay attention to the details that we mentioned in class/homework and in previous sample .Rmd files. For example, how to use #, ##, ###, ..., bold face, italics, inline codes, tables, ..., {results = "asis"}, use of colors in plots/ggplots, and so forth.
+```
+
+This exercise uses the graduate school admissions dataset from the applicants to a higher-ed institute. The dataset is *LogRegAdmit.csv.*
+
+The variables in the dataset are:  
+
+* `admit`: 0 or 1 (False or True)
+* `gre`: gre score
+* `gpa`: grade point average at undergraduate level
+* `rank`: the ranking of the applicant's undergraduate institute, 1, 2, 3, or 4
+
+# Question 1  
+**After importing the dataset, check the structure. Make sure `admit` and `rank` are stored as factors, instead of numeric or integers. (Hint: Use `as.factor()` or `factor()` function).**
+
+```{r}
+admissions <- read_csv("LogRegAdmit.csv")
+str(admissions)
+```
+
+The dataset contains the following variables:
+	•	admit (0/1 for admission)
+	•	gre (GRE score)
+	•	gpa (undergraduate GPA)
+	•	rank (undergraduate school rank: 1–4)
+
+I converted admit and rank to factors to treat them as categorical variables for analysis and plotting.
+
+```{r}
+admissions <- admissions %>%
+  mutate(admit = factor(admit),
+         rank = factor(rank))
+str(admissions)
+```
+
+# Question 2  
+**Construct t-intervals for the `gre` and `gpa` variables for all applicants at 0.80 level and 0.99 level.**
+
+T-intervals for all applicants
+```{r}
+t_interval <- function(x, conf_level=0.95){
+  n <- length(x)
+  m <- mean(x)
+  se <- sd(x)/sqrt(n)
+  t_val <- qt((1 + conf_level)/2, df=n-1)
+  lower <- m - t_val*se
+  upper <- m + t_val*se
+  return(c(lower=lower, mean=m, upper=upper))
+}
+
+gre_80 <- t_interval(admissions$gre, 0.80)
+gre_99 <- t_interval(admissions$gre, 0.99)
+gpa_80 <- t_interval(admissions$gpa, 0.80)
+gpa_99 <- t_interval(admissions$gpa, 0.99)
+```
+
+The 80% confidence interval for the mean GRE score is `r round(gre_80["lower"],1)` to `r round(gre_80["upper"],1)` (mean=`r round(gre_80["mean"],1)`).  
+The 99% CI is `r round(gre_99["lower"],1)` to `r round(gre_99["upper"],1)`.
+
+For GPA, the 80% CI is `r round(gpa_80["lower"],2)` to `r round(gpa_80["upper"],2)` (mean=`r round(gpa_80["mean"],2)`),  
+and the 99% CI is `r round(gpa_99["lower"],2)` to `r round(gpa_99["upper"],2)`.
+
+# Question 3  
+**Repeat the t-interval calculation for `gre` (as in Question 2) but now for admitted (`admit=1`) and rejected (`admit=0`) students separately. (You can subset them first.)  Comparing the admitted and rejected, do the two intervals overlap at 0.80 level? How about at 0.99 level?**
+
+GRE t-intervals by admission status
+```{r}
+gre_admit <- admissions %>% filter(admit == 1) %>% pull(gre)
+gre_reject <- admissions %>% filter(admit == 0) %>% pull(gre)
+
+gre_admit_80  <- t_interval(gre_admit, 0.80)
+gre_reject_80 <- t_interval(gre_reject, 0.80)
+
+gre_admit_99  <- t_interval(gre_admit, 0.99)
+gre_reject_99 <- t_interval(gre_reject, 0.99)
+```
+
+Admitted students’ GRE 80% CI: `r round(gre_admit_80["lower"],1)`–`r round(gre_admit_80["upper"],1)`  
+Rejected students’ GRE 80% CI: `r round(gre_reject_80["lower"],1)`–`r round(gre_reject_80["upper"],1)`  
+Overlap at 80%: `r ifelse(gre_admit_80["upper"] < gre_reject_80["lower"] | gre_admit_80["lower"] > gre_reject_80["upper"], "No", "Yes")`.  
+
+At 99%, admitted GRE CI: `r round(gre_admit_99["lower"],1)`–`r round(gre_admit_99["upper"],1)`,  
+rejected GRE CI: `r round(gre_reject_99["lower"],1)`–`r round(gre_reject_99["upper"],1)`.  
+Overlap at 99%: `r ifelse(gre_admit_99["upper"] < gre_reject_99["lower"] | gre_admit_99["lower"] > gre_reject_99["upper"], "No", "Yes")`.  
+
+# Question 4   
+**Make box-plots showing `gre` distribution among applicants from different school rankings for the admitted and rejected separately. Please use ggplot for this. The x-variable should be `rank`, and the y-variable should be `gre`.**
+
+Boxplots of GRE by school rank
+```{r}
+# Admitted
+ggplot(admissions %>% filter(admit == 1), aes(x=rank, y=gre)) +
+  geom_boxplot(fill="skyblue") +
+  labs(title="GRE Distribution by School Rank (Admitted)",
+       x="School Rank", y="GRE Score")
+
+# Rejected
+ggplot(admissions %>% filter(admit == 0), aes(x=rank, y=gre)) +
+  geom_boxplot(fill="salmon") +
+  labs(title="GRE Distribution by School Rank (Rejected)",
+       x="School Rank", y="GRE Score")
+```
+
+
+
+# Question 5   
+**Repeat Question 3 for `gpa`. Do the two groups have t-intervals overlap at 0.80 level? At 0.99 level?**
+
+GPA t-intervals by admission status
+```{r}
+gpa_admit <- admissions %>% filter(admit == 1) %>% pull(gpa)
+gpa_reject <- admissions %>% filter(admit == 0) %>% pull(gpa)
+
+gpa_admit_80  <- t_interval(gpa_admit, 0.80)
+gpa_reject_80 <- t_interval(gpa_reject, 0.80)
+
+gpa_admit_99  <- t_interval(gpa_admit, 0.99)
+gpa_reject_99 <- t_interval(gpa_reject, 0.99)
+```
+
+Admitted students’ GPA 80% CI: `r round(gpa_admit_80["lower"],2)`–`r round(gpa_admit_80["upper"],2)`  
+Rejected students’ GPA 80% CI: `r round(gpa_reject_80["lower"],2)`–`r round(gpa_reject_80["upper"],2)`  
+Overlap at 80%: `r ifelse(gpa_admit_80["upper"] < gpa_reject_80["lower"] | gpa_admit_80["lower"] > gpa_reject_80["upper"], "No", "Yes")`.  
+
+At 99%, admitted GPA CI: `r round(gpa_admit_99["lower"],2)`–`r round(gpa_admit_99["upper"],2)`,  
+rejected GPA CI: `r round(gpa_reject_99["lower"],2)`–`r round(gpa_reject_99["upper"],2)`.  
+Overlap at 99%: `r ifelse(gpa_admit_99["upper"] < gpa_reject_99["lower"] | gpa_admit_99["lower"] > gpa_reject_99["upper"], "No", "Yes")`.  
+
+# Question 6   
+**Repeat Question 4 for `gpa`. Make box-plots showing the gpa distribution among applicants from different school rankings for the admitted and rejected separately. Again, use ggplot.**
+
+Boxplots of GPA by school rank
+```{r}
+# Admitted
+ggplot(admissions %>% filter(admit == 1), aes(x=rank, y=gpa)) +
+  geom_boxplot(fill="lightgreen") +
+  labs(title="GPA Distribution by School Rank (Admitted)",
+       x="School Rank", y="GPA")
+
+# Rejected
+ggplot(admissions %>% filter(admit == 0), aes(x=rank, y=gpa)) +
+  geom_boxplot(fill="lightpink") +
+  labs(title="GPA Distribution by School Rank (Rejected)",
+       x="School Rank", y="GPA")
+```
+
+
+
+# Question 7  
+**Based on EDA from the charts and the t-interval calculations you produced, do you observe any potential effects between gre/gpa/rank on admissions? Explain briefly. **
+
+The analysis suggests that all three factors GRE, GPA, and undergraduate school rank affect the likelihood of admission.
+
+- GRE: Admitted students tend to have higher GRE scores. Both the 80% and 99% confidence intervals for admitted vs. rejected students do not overlap, indicating a clear difference.
+
+- GPA: Admitted students also show higher GPAs, with non overlapping confidence intervals at both confidence levels. The separation is even stronger compared to GRE, suggesting GPA may play a slightly larger role.
+
+- Rank: Boxplots reveal that applicants from higher ranked schools (particularly rank 1) are more likely to be admitted and tend to have stronger GRE and GPA profiles.
+
+Conclusion: Admission decisions appear to be influenced jointly by GRE performance, GPA, and the prestige of the undergraduate institution, with GPA and school rank showing particularly strong effects.
+
+
+
+
+
+
+

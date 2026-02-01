@@ -1,0 +1,263 @@
+---
+title: "HW 7: Linear Models with Quantitative Regressors"
+author: "Vidyullatha KS"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+# library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+library(ezids)
+library(readr)
+library(tidyverse)
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(results="markup", warning = F, message = F)
+# Can globally set option for number display format.
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+# 4. Compose your answers using inline R code instead of using the code-block output as much as you can. 
+# 5. Your grade is also determined by the style. Even if you answer everything correctly, but the .html does not look appealing, you will not get full credit. Pay attention to the details that we mentioned in class/homework and in previous sample .Rmd files. For example, how to use #, ##, ###, ..., bold face, italics, inline codes, tables, ..., {results = "asis"}, use of colors in plots/ggplots, and so forth.
+```
+
+This homework uses a bikeshare dataset called `BikeShare` on api.regression.fit, or *bikedata.csv* on our class GitHub repo.  
+
+
+# Question 1  
+**Import the data and name it `bikeorig`.  Remove `Date`, `Casual Users`, and `Registered Users` from the dataset and save it as a new data frame named `bike`.  How many variables are in `bike`?  How many of them are imported as `int`?  Feel free to rename longer variable names into shorter ones for convenience.**
+
+```{r}
+bikeorig <- read_csv("bikedata.csv") 
+glimpse(bikeorig)
+summary(bikeorig)
+```
+
+Imported the data and above is a quick peep at the data and summary
+
+```{r}
+library(janitor)
+bikeorig <- bikeorig %>% janitor::clean_names()
+bike <- bikeorig %>%
+  select(-date, -casual_users, -registered_users)
+
+num_vars <- ncol(bike)
+int_cols <- sapply(bike, function(x) inherits(x, "integer"))
+num_ints <- sum(int_cols)
+```
+
+The bike data frame contains `r num_vars` variables. Of these, `r num_ints` were imported as integer type `r paste(names(bike)[int_cols], collapse = ', ')`
+
+**Note:** None of them were imported as integer (all are numeric), because R reads CSV numbers as numeric by default.
+
+
+# Question 2    
+**Select the subset with `Hour` equal 16 only and name the new data frame `bike16`.  These are the afternoon rush hour data. How many observations are there?  Use this data frame for the next question.**  
+
+```{r}
+bike16 <- bike %>% filter(hour == 16)
+n_bike16 <- nrow(bike16)
+n_bike16
+```
+
+The bike16 data frame (hour == 16) has `r n_bike16` observations
+
+
+# Question 3  
+**Before building any models, we should make sure the variables are set up properly in `bike16`.  Which ones should be recorded as categorical?  Convert them now before proceeding to the model building.  Call this *cleaned* dataset `bike16_final` and use it for the rest of the questions.**
+
+```{r}
+categorical_vars <- c("hour", "season", "weather", "holiday", "workingday", "weekday") 
+categorical_vars <- categorical_vars[categorical_vars %in% names(bike16)]
+
+bike16_final <- bike16 %>%
+  mutate(across(all_of(categorical_vars), ~ factor(.x)))
+
+str(bike16_final)
+```
+
+I converted the following variables to categorical (factor) type: `r paste(categorical_vars, collapse = ', ')`. 
+This ensures that variables like hour, season, and holiday are treated as categorical in the model.
+
+
+# Question 4  
+**Make a `pairs()` plot with all the variables (quantitative and qualitative) in the `bike16_final` dataset.**  
+
+Note: While the `cor()` function does not accept categorical variables (and therefore we cannot use it for `corrplot()`), the `lattice::pairs()` function does not complain about categorical columns. We can still use it to get a visual distribution of data values from it.
+
+```{r, fig.width=8, fig.height=8}
+pairs(bike16_final, gap = 0.5, main = "Pairs plot for bike16_final")
+```
+
+```{r, fig.width=8, fig.height=8}
+library(GGally)
+ggpairs(bike16_final)
+```
+
+The pairs plot (`pairs(bike16_final)`) allows us to visually inspect relationships between variables. 
+We can see that `total_users` tends to increase with `temperature_f` and `temperature_feels_f`. Other variables show weaker relationships.
+
+
+# Question 5  
+**Make a `corrplot()` with only the numerical variables in the `bike16_final` dataset.**  
+
+Note: correlation functions will not work with categorical/factor variables. You can either subset the data frame to only numerical variables first, then create the correlation matrix to plot. Or you can create the correlation matrix from `bike16_final`, then select out the portion of the matrix that you want. Use options that does a good job showing the relationships between different variables. 
+
+```{r q5, fig.width=7, fig.height=6}
+library(corrplot)
+num_df <- bike16_final %>% select(where(is.numeric))
+
+# computing correlation matrix
+cor_mat <- cor(num_df, use = "pairwise.complete.obs", method = "pearson")
+
+# corrplot 
+corrplot(cor_mat, method = "color", type = "upper", 
+         addCoef.col = "black", tl.col = "black", number.cex = 0.8,
+         title = "Correlation matrix (numeric vars) for bike16_final", mar=c(0,0,2,0))
+```
+
+The correlation matrix (corrplot) shows that among numeric variables, `r names(sort(cor_mat[,"total_users"], decreasing = TRUE)[-1][1])` has the strongest positive correlation with Total Users (`r round(max(abs(cor_mat[,"total_users"][-which(names(cor_mat[,"total_users"]) == "total_users")]),3))`), while `r names(sort(cor_mat[,"total_users"])[1])` has a weaker negative correlation.
+
+
+# Question 6   
+**Using only the numerical variables from the `bike16_final` dataset, build a linear model with 1 independent variable to predict the `Total Users`.  Choose the variable with the strongest correlation coefficient. State and interpret the coefficient values, their p-values, and the multiple R-squared value.**  
+
+```{r}
+response_var <- "total_users"
+
+# correlation of numeric predictors with response
+cors_with_resp <- cor_mat[, response_var] %>% sort(decreasing = TRUE)
+
+# removing self
+cors_with_resp <- cors_with_resp[names(cors_with_resp) != response_var]
+cors_with_resp
+
+# picking top predictor by absolute correlation
+top_predictor <- names(which.max(abs(cors_with_resp)))
+top_predictor
+
+# Fit single-variable model
+formula1 <- as.formula(paste(response_var, "~", top_predictor))
+model1 <- lm(formula1, data = bike16_final)
+
+summary(model1)
+```
+
+The single-variable linear model predicts Total Users using `r top_predictor`. 
+The estimated regression equation is: Total_Users = `r round(coef(model1)[1],3)` + (`r round(coef(model1)[2],3)`) * `r top_predictor`. 
+This means that for every one unit increase in `r top_predictor`, Total Users changes by `r round(coef(model1)[2],3)` users. 
+The coefficient is statistically significant (p < 0.001), and the model explains `r round(summary(model1)$r.squared,3)` of the variance in Total Users (R-squared).
+
+
+# Question 7  
+**Write down the regression equation for the model fit in Q6.**  
+
+Hint: The regression model equation will look something like  `Total users` = 0.28 + 5.29 `Temperature F`, just as an example.
+
+```{r}
+coefs <- coef(model1)
+eq_text <- sprintf("Total_Users = %.3f + (%.3f) * %s", coefs[1], coefs[2], top_predictor)
+eq_text
+```
+
+The regression equation based on the model from Q6 is: `r sprintf("Total_Users = %.3f + (%.3f) * %s", coefs[1], coefs[2], top_predictor)`.
+
+
+# Question 8  
+**Next, add a second quantitative variable to the model.  Choose the variable with the next strongest correlation, but avoid using obviously collinear variables (`Temperature F` and `Temperature Feels F` for example).  State and interpret the coefficient values, their p-values, and the multiple R-squared value.**
+
+Note: When you have the model, check the VIF values. If the VIF is higher than 5, discard this model, and try the variable with the next strongest correlation until you find one that works (ideally with VIF<5, or if you have to, allow VIF up to 10).  
+
+```{r}
+# -- Code Reference : ChatGPT
+library(car) 
+# candidate predictors ordered by absolute correlation (excluding response)
+cand_order <- names(sort(abs(cors_with_resp), decreasing = TRUE))
+cand_order
+
+# Avoid extremely collinear predictors by checking vif
+model2 <- NULL
+chosen_second <- NA
+first_pred <- top_predictor
+
+for (cand in cand_order) {
+  if (cand == first_pred) next
+  formula2 <- as.formula(paste(response_var, "~", first_pred, "+", cand))
+  tmp_mod <- lm(formula2, data = bike16_final)
+  # computing VIFs
+  vif_vals <- tryCatch(car::vif(tmp_mod), error = function(e) NA)
+  max_vif <- if (is.numeric(vif_vals)) max(vif_vals, na.rm = TRUE) else Inf
+  if (!is.infinite(max_vif) && max_vif < 5) {
+    model2 <- tmp_mod
+    chosen_second <- cand
+    break
+  }
+}
+
+# If there's no VIF<5, allow VIF<10
+if (is.null(model2)) {
+  for (cand in cand_order) {
+    if (cand == first_pred) next
+    formula2 <- as.formula(paste(response_var, "~", first_pred, "+", cand))
+    tmp_mod <- lm(formula2, data = bike16_final)
+    vif_vals <- tryCatch(car::vif(tmp_mod), error = function(e) NA)
+    max_vif <- if (is.numeric(vif_vals)) max(vif_vals, na.rm = TRUE) else Inf
+    if (!is.infinite(max_vif) && max_vif < 10) {
+      model2 <- tmp_mod
+      chosen_second <- cand
+      break
+    }
+  }
+}
+
+# show chosen second predictor and model summary
+chosen_second
+summary(model2)
+if (!is.null(model2)) car::vif(model2)
+```
+
+Adding a second predictor, `r chosen_second`, improves the model. 
+
+The coefficients are: 
+
+- Intercept: `r round(coef(model2)[1],3)`  
+- `r top_predictor`: `r round(coef(model2)[2],3)`  
+- `r chosen_second`: `r round(coef(model2)[3],3)`.  
+
+All coefficients are statistically significant (p < 0.001), and the model's multiple R-squared increased to `r round(summary(model2)$r.squared,3)`. 
+VIF values are all below 5, indicating no serious multicollinearity.
+
+
+# Question 9 
+**Use ANOVA to compare the Q6 and Q8 models. Interpret the results. Which model would you use and why?**  
+
+```{r}
+anova_res <- anova(model1, model2)  # compare nested models
+anova_res
+```
+
+Comparing the models with ANOVA shows that adding weather_type significantly improves the fit (F = `r round(anova_res$F[2],1)`, p = `r signif(anova_res$"Pr(>F)"[2],3)`), increasing the R-squared from `r round(summary(model1)$r.squared,3)` to `r round(summary(model2)$r.squared,3)`. 
+Therefore, the two-variable model from Q8 is preferred over the single-variable model from Q6 for predicting Total Users.
+
+
+

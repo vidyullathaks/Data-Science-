@@ -1,0 +1,379 @@
+---
+title: "HW 9: Logistic Regression"
+author: "Vidyullatha KS"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+# library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+library(ezids)
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(results="markup", warning = F, message = F)
+# Can globally set option for number display format.
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+# 4. Compose your answers using inline R code instead of using the code-block output as much as you can. 
+# 5. Your grade is also determined by the style. Even if you answer everything correctly, but the .html does not look appealing, you will not get full credit. Pay attention to the details that we mentioned in class/homework and in previous sample .Rmd files. For example, how to use #, ##, ###, ..., bold face, italics, inline codes, tables, ..., {results = "asis"}, use of colors in plots/ggplots, and so forth.
+```
+
+We have the historic Titanic dataset to study here which can be found in the file `Titanic.csv`.  The variables in the dataset are:  
+
+* `survived`: Survived,	0 = No, 1 = Yes
+* `pclass`: Ticket class, 1 = 1st, 2 = 2nd, 3 = 3rd
+* `sex`: Sex
+* `age`: Age in years
+* `sibsp`: # of siblings / spouses on the Titanic
+* `parch`: # of parents / children on the Titanic
+* `ticket`: Ticket number (for superstitious ones)
+* `fare`: Passenger fare
+* `embarked`: Port of Embarkment	C: Cherbourg, Q: Queenstown, S: Southampton
+
+The questions listed here are the basic guidelines, not the only goal, in this homework. For example, after you load the dataframe, even though the question does not ask you to look at the structure of the dataframe, you most likely should. You are given fewer and fewer “specific to-dos” in the homework, as you are getting more familiar with the data analysis process. Calculate and figure out the necessary info needed in the analysis, even though the questions might not ask for them explicitly. When you look at your own work, you should find it convincing, answering the questions and technically sound.  
+
+# Question 1: Get to Know the Data
+**Read the dataset into R and call it `titanic_orig`. Explore it little to get the overall picture of the dataset.  Eventually we would like to see what affected `survived` in the tragedy.**
+
+Loading the dataset --> 
+```{r}
+titanic_orig <- read.csv("Titanic.csv", stringsAsFactors = FALSE)
+```
+
+Structure of the dataset --> 
+```{r}
+str(titanic_orig)
+```
+
+Summary of the dataset --> 
+```{r}
+summary(titanic_orig)
+```
+
+First 10 rows of the dataset --> 
+```{r}
+head(titanic_orig, 10)
+```
+
+Survived data in the daatset -->
+```{r}
+table(titanic_orig$survived)
+```
+
+The dataset titanic_orig contains 891 observations and 10 variables describing passengers aboard the Titanic.
+The key response variable is survived (0 = No, 1 = Yes), and the potential predictors include ticket class (pclass), sex, age, number of siblings/spouses (sibsp), number of parents/children (parch), fare, and port of embarkation (embarked).
+
+From the data summary:
+
+- The average passenger age was about 29.7 years, with ages ranging from 0.4 to 80, and 177 missing values in age.
+- About 38.4% of passengers survived (342 out of 891), while 549 did not.
+- Ticket classes range from 1st to 3rd, with a median of 3, indicating most passengers were in the lower classes.
+- sex is stored as a character variable, with values "male" and "female".
+- The variables sibsp, parch, and fare vary considerably, with some passengers traveling in large family groups and others alone.
+- The dataset also includes ticket numbers and ports of embarkation (C, Q, S).
+
+Overall, the dataset appears clean, aside from the missing ages, and is suitable for logistic regression analysis to study what factors influenced survival.
+
+# Question 2: Age
+**One of the independent variables we will use to model `survived` is `age`. How many missing values are there for the variable `age`? If not too many, let's just subset those out.**  
+
+Counting the missing value --> 
+```{r}
+sum(is.na(titanic_orig$age))
+```
+
+Optionally percent --> 
+```{r}
+mean(is.na(titanic_orig$age))
+```
+
+Creating dataset without missing ages (if not too many) --> 
+```{r}
+titanic <- titanic_orig[!is.na(titanic_orig$age), ]
+nrow(titanic_orig); nrow(titanic)  
+```
+
+There are `r sum(is.na(titanic_orig$age))` missing values in age (which is `r round(100*mean(is.na(titanic_orig$age)),1)`% of the data). Since the number is relatively small, I removed rows with missing age for subsequent modeling and saved the cleaned set to titanic.
+
+# Question 3: Factor Conversions
+**If we were to use `sibsp` and `parch` in our analysis, even though they are legitimately ratio variables, we might not expect doubling the number of siblings necessarily double the effects on survival. For this reason, let's change these two variables to factor variables. Also change the other ones that you find imported as the wrong data type.**
+
+Converting variables to appropriate types --> 
+```{r}
+titanic$pclass <- factor(titanic$pclass, levels = c(1,2,3), labels = c("1st","2nd","3rd"))
+titanic$sex <- factor(titanic$sex)
+titanic$sibsp <- factor(titanic$sibsp)   # convert to factor as requested
+titanic$parch <- factor(titanic$parch)
+titanic$embarked <- factor(titanic$embarked)
+titanic$survived <- factor(titanic$survived, levels = c(0,1), labels = c("No","Yes"))
+```
+
+To confirm --> 
+```{r}
+str(titanic)
+summary(titanic[c("survived","pclass","sex","sibsp","parch","embarked")])
+```
+
+# Question 4: Two-Way Tests
+**Before using our newly learned technique of logistic regression, let’s go old school and use some prior knowledge to try find an answer. Does the data support that `age` affects `survived`?  Does the data support that `sex` has an effect on `survived`?  Does the data support ticket class `pclass` has an effect on `survived`?**
+
+age vs survived (t-test) --> 
+```{r}
+tapply(titanic$age, titanic$survived, summary)
+```
+
+Check normality quickly --> 
+```{r}
+by(titanic$age, titanic$survived, function(x) c(mean = mean(x), sd = sd(x), n = length(x)))
+```
+
+t-test (unequal variance) --> 
+```{r}
+t_age <- t.test(age ~ survived, data = titanic)
+t_age
+```
+
+Wilcoxon as robustness --> 
+```{r}
+wilcox.test(age ~ survived, data = titanic)
+```
+
+sex vs survived: contingency table + chi-square --> 
+```{r}
+tab_sex <- table(titanic$sex, titanic$survived)
+tab_sex
+chisq.test(tab_sex)
+```
+
+pclass vs survived: contingency table + chi-square --> 
+```{r}
+tab_pclass <- table(titanic$pclass, titanic$survived)
+tab_pclass
+chisq.test(tab_pclass)
+```
+
+**Age vs. Survival-->**
+I compared the ages of passengers who survived versus those who did not.
+The average age of passengers who did not survive was about 30.6 years (SD = 14.2, n = 424), while the average age of those who did survive was about 28.3 years (SD = 15.0, n = 290).
+
+A Welch two-sample t-test (assuming unequal variances) indicated a statistically significant difference in mean age between the two groups (t(599) = 2.0, p = 0.04). This suggests that survivors tended to be slightly younger on average.
+However, when I ran the non-parametric Wilcoxon rank-sum test, the p-value was 0.20, meaning the result was not significant under this more robust test.
+
+- Interpretation: There is weak evidence that younger passengers were more likely to survive, but the difference is small and depends on the test used.
+
+**Sex vs. Survival-->**
+The Chi-square test of independence showed a strong and highly significant relationship between sex and survival (χ²(1) = 205, p < 2×10⁻¹⁶).
+Women had a much higher survival rate than men.
+
+- Interpretation: Sex was a major factor in survival outcomes, with females far more likely to survive than males.
+
+**Passenger Class vs. Survival-->**
+
+A Chi-square test examining the association between passenger class and survival also revealed a significant relationship (χ²(2) = 93, p < 2×10⁻¹⁶).
+Passengers from higher classes (1st and 2nd) were much more likely to survive than those from 3rd class.
+
+- Interpretation: Passenger class strongly influenced survival chances, reflecting the unequal access to lifeboats and rescue opportunities among classes.
+
+# Question 5: Survival vs. Age and Pclass   
+**Now let us build a logit model with `age + pclass` as predictors, and analyze the results. Is the model a good one? Support your answer with appropriate model evaluation(s).  Comment on statistical significant of coefficients, accuracy/confusion matrix, ROC/AUC, ...** 
+
+logistic regression with age + pclass -->
+```{r}
+model1 <- glm(survived ~ age + pclass, data = titanic, family = binomial(link = "logit"))
+summary(model1)
+```
+
+Pseudo R^2 (McFadden) --> 
+```{r}
+library(pscl)
+pR2(model1)
+```
+
+Confusion matrix and accuracy using 0.5 cutoff --> 
+```{r}
+prob1 <- predict(model1, type = "response")
+pred1 <- ifelse(prob1 >= 0.5, "Yes", "No")
+table(Predicted = pred1, Actual = titanic$survived)
+```
+
+Accuracy --> 
+```{r}
+mean(pred1 == as.character(titanic$survived))
+```
+
+ROC / AUC --> 
+```{r}
+library(pROC)
+roc1 <- roc(as.numeric(titanic$survived) - 1, prob1) # convert factor to 0/1 numeric
+auc(roc1)
+plot(roc1, main = "ROC: model1 (age + pclass)")
+```
+
+Logistic regression model with age and pclass as predictors was statistically significant (McFadden R² = 0.14), indicating these variables help explain survival.
+
+Age had a negative effect (–0.0418, p < 0.001), meaning younger passengers were more likely to survive. Compared to first-class passengers, both second and third class had significantly lower survival odds (p < 0.001).
+
+Model performance was moderate (Accuracy = 0.70, AUC = 0.75), showing fair ability to distinguish survivors from non-survivors.
+
+Overall, survival was strongly associated with both age and passenger class, but the model could be improved by adding additional predictors such as sex or fare.
+
+# Question 6: Coefficient Interpretation
+**Interpret the value of the `age` coefficient with respect to changes on the logit scale and on the odds scale.**
+
+```{r}
+coef_age <- coef(model1)["age"]
+se_age <- summary(model1)$coefficients["age","Std. Error"]
+odds_ratio_age <- exp(coef_age)
+ci_age <- exp(confint(model1)["age", ])
+coef_age; odds_ratio_age; ci_age
+```
+
+The coefficient for age is −0.0418, indicating that each additional year of age decreases the log odds of survival by 0.0418, holding other variables constant.
+
+On the odds scale, the odds ratio is 0.959, meaning the odds of survival decrease by about 4% per year of age. The 95% confidence interval (0.946–0.972) is entirely below 1, confirming that age has a statistically significant negative effect on survival.
+
+# Question 7: Adding More Features
+**Can we improve the model from Q5? Let us also throw in `sex` as a predictor too. How’s the model now?  Comment on deviance tests for model comparisons, statistical significant of coefficients, accuracy/confusion matrix, ROC/AUC, ...**
+
+Adding sex --> 
+```{r}
+model2 <- glm(survived ~ age + pclass + sex, data = titanic, family = binomial)
+summary(model2)
+```
+
+comparing models with anova (deviance test) --> 
+```{r}
+anova(model1, model2, test = "Chisq")
+```
+ 
+Pseudo R2 and AIC --> 
+```{r}
+pR2(model2)
+AIC(model1, model2)
+```
+ 
+Predictions, confusion, ROC --> 
+```{r}
+prob2 <- predict(model2, type = "response")
+pred2 <- ifelse(prob2 >= 0.5, "Yes", "No")
+table(Predicted = pred2, Actual = titanic$survived)
+mean(pred2 == as.character(titanic$survived))
+roc2 <- roc(as.numeric(titanic$survived)-1, prob2)
+auc(roc2)
+plot(roc2, main = "ROC: model2 (age + pclass + sex)")
+```
+
+Adding sex to the model significantly improved fit: all predictors (age, pclass, sex) are highly significant, residual deviance decreased, and AIC dropped from 835 to 657. The deviance test confirms sex adds meaningful information (ΔDeviance = 180, p < 2×10⁻¹⁶). Classification accuracy is 0.789, and ROC AUC = 0.852, indicating good predictive performance. Overall, age, passenger class, and sex are strong predictors of survival.
+
+# Question 8: Binary Predictions Part I
+**Use the cutoff of 0.5 to convert predicted probabilities to binary predictions.  Find the confusion matrix and calculate the false positive rate (FPR) and the false negative rate (FNR).**
+
+cutoff 0.5 using model2 (recommended use the more complete model, model2) --> 
+```{r}
+cutoff <- 0.5
+pred_bin_05 <- factor(ifelse(prob2 >= cutoff, "Yes", "No"), levels=c("No","Yes"))
+actual <- titanic$survived
+
+conf05 <- table(Predicted = pred_bin_05, Actual = actual)
+conf05
+```
+
+Computing rates --> 
+```{r}
+TP <- conf05["Yes","Yes"]
+TN <- conf05["No","No"]
+FP <- conf05["Yes","No"]
+FN <- conf05["No","Yes"]
+
+accuracy05 <- (TP + TN) / sum(conf05)
+FPR05 <- FP / (FP + TN)  # proportion of negatives incorrectly predicted positive
+FNR05 <- FN / (FN + TP)  # proportion of positives incorrectly predicted negative
+
+list(accuracy = accuracy05, FPR = FPR05, FNR = FNR05)
+```
+
+Using a 0.5 cutoff, the model achieves 78.9% accuracy. The false positive rate is 0.16 and the false negative rate is 0.286, indicating that the model correctly classifies most passengers but misclassifies about 16% of non-survivors and 29% of survivors.
+
+# Question 9: Binary Predictions Part II
+**Now use the cutoff of 0.38 (the proportion of survivors in the data) to convert predicted probabilities to binary predictions.  Find the confusion matrix and calculate the false positive rate and the false negative rate.  How do the FPR and FNR compare to the FPR and FNR from Q8?  Which cutoff would you use?**
+
+cutoff = proportion of survivors --> 
+```{r}
+prop_survive <- mean(as.numeric(titanic$survived)-1)  # numeric 0/1
+prop_survive  # should be ~0.38
+
+cutoff2 <- prop_survive
+pred_bin_p <- factor(ifelse(prob2 >= cutoff2, "Yes", "No"), levels = c("No","Yes"))
+conf_p <- table(Predicted = pred_bin_p, Actual = actual)
+conf_p
+
+TP2 <- conf_p["Yes","Yes"]
+TN2 <- conf_p["No","No"]
+FP2 <- conf_p["Yes","No"]
+FN2 <- conf_p["No","Yes"]
+
+accuracy_p <- (TP2 + TN2) / sum(conf_p)
+FPR_p <- FP2 / (FP2 + TN2)
+FNR_p <- FN2 / (FN2 + TP2)
+
+list(prop_survive = prop_survive, accuracy = accuracy_p, FPR = FPR_p, FNR = FNR_p)
+```
+
+Using the 0.38 cutoff, accuracy improves to 80.1%. The FPR rises to 0.20, while the FNR drops to 0.197, meaning fewer survivors are missed but slightly more non-survivors are misclassified. This cutoff is preferable when capturing survivors is more important than avoiding false positives.
+
+# Question 10: Conclusions  
+**With all the results you obtained above, how would you present a high-level summary of the findings? Are the results surprising or expected?**
+
+Using the Titanic dataset, we examined which factors influenced survival through exploratory analysis, statistical tests, and logistic regression modeling. Here are the main findings:
+
+**1.	Age:** 
+
+Younger passengers had slightly higher survival rates. The evidence was weak when using robust non-parametric tests, but logistic regression confirmed a small negative effect of age on survival—the odds of surviving decrease by about 4% per additional year of age.
+	
+**2.	Sex:** 
+
+Sex was the strongest predictor of survival. Women had substantially higher survival rates than men, which aligns with historical accounts of “women and children first” during the evacuation.
+	
+**3.	Passenger Class (Pclass):** 
+
+Higher-class passengers (1st and 2nd) were more likely to survive than those in 3rd class, reflecting differences in access to lifeboats and resources.
+	
+**4.	Logistic Regression Modeling:**
+	
+- Including age and pclass as predictors yielded a moderately performing model (Accuracy ≈ 70%, AUC ≈ 0.75).
+- Adding sex substantially improved model performance (Accuracy ≈ 79%, AUC ≈ 0.85), confirming its importance.
+- All three predictors-age, pclass, and sex—were statistically significant and meaningful.
+
+**5.	Binary Classification Cutoffs:**
+	
+- Using a 0.5 probability cutoff, the model achieved a good balance, but missed more survivors (FNR ≈ 0.29).
+- Using the cutoff equal to the proportion of survivors (≈ 0.38) improved sensitivity (lower FNR ≈ 0.20) and overall accuracy (≈ 80%), though at a small cost to specificity.
+
+**6.	Overall Interpretation:**
+	
+- Survival depended strongly on sex and class, with age playing a smaller but measurable role.
+- These findings are consistent with historical records and expected patterns: women and upper-class passengers had better access to lifeboats, while older passengers had slightly lower survival odds.
+- Logistic regression effectively quantified these relationships and can reasonably predict survival probabilities, with cutoffs adjusted based on priorities (e.g., minimizing missed survivors).
+
+**High-level takeaway:** Sex and class were dominant survival factors, age played a smaller role, and using logistic regression with appropriate cutoffs allows accurate modeling and prediction of survival outcomes. These results align with historical expectations rather than being surprising.

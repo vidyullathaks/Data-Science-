@@ -1,0 +1,204 @@
+---
+title: "HW 4: Exploratory Data Analysis (EDA)"
+author: "Vidyullatha"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+library(ezids)
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(warning = F, message = F)
+# Can globally set option for number display format.
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+# 4. Compose your answers using inline R code instead of using the code-block output as much as you can. 
+# 5. Your grade is also determined by the style. Even if you answer everything correctly, but the .html does not look appealing, you will not get full credit. Pay attention to the details that we mentioned in class/homework and in previous sample .Rmd files. For example, how to use #, ##, ###, ..., bold face, italics, inline codes, tables, ..., {results = "asis"}, use of colors in plots/ggplots, and so forth.
+```
+
+
+This homework uses a pizza ingredient dataset is from data.world (@sdhilip) The variables are:  
+
+Variable |  Definition  
+  :-:    |  :-- 
+brand	 | Pizza brand
+id | ID
+mois | Amount of water per 100 grams in the sample
+prot | Amount of protein per 100 grams in the sample
+fat | Amount of fat per 100 grams in the sample
+ash | Amount of ash per 100 grams in the sample
+sodium | Amount of sodium per 100 grams in the sample
+carb | Amount of carbohydrates per 100 grams in the sample
+cal | Amount of calories per 100 grams in the sample
+
+# Question 1 
+**Read the data file `Pizza.csv` into R.**   
+
+Reading the .csv file
+```{r}
+pizza <- read.csv("Pizza.csv")
+str(pizza)
+```
+
+# Question 2  
+**How many observations are in this data set?  You may use the `length`, `nrow` or `dim` function.**  
+
+Number of observation using nrow()
+```{r}
+nrow(pizza)
+```
+
+Or using dim()
+```{r}
+dim(pizza)[1]
+```
+
+# Question 3  
+**Look at the summary statistics for this data set (e.g. using the `summary` function).  Why does the output for `brand` look different?  Convert `brand` to a factor variable (e.g. using `as.factor`) and look at new summary statistics.  Comment on what changed.**  
+
+Summary of the dataset
+```{r}
+summary(pizza$brand)
+```
+
+```{r}
+# Converting brand to factor variable
+pizza$brand <- as.factor(pizza$brand)
+```
+
+Summary after factor conversion
+```{r}
+summary(pizza$brand)
+```
+
+Checking structure to confirm
+```{r}
+str(pizza$brand)
+```
+
+# Question 4 
+**Plot histograms (e.g. using ``ggplot`), boxplots (e.g. using `ggplot`), and QQ plots (e.g. using `qqnorm`) for `sodium` and `cal`.  Describe the shape of the distribution and any unusual observations.  Remember to format your plot nicely with titles, labels, colors, ...**  
+
+Sodium histogram
+```{r}
+library(ggplot2)
+ggplot(pizza, aes(x = sodium)) +
+  geom_histogram(fill = "skyblue", color = "black", bins = 20) +
+  labs(title = "Histogram of Sodium", x = "Sodium (per 100g)", y = "Count")
+```
+
+Sodium boxplot
+```{r}
+ggplot(pizza, aes(y = sodium)) +
+  geom_boxplot(fill = "orange", color = "black") +
+  labs(title = "Boxplot of Sodium", y = "Sodium (per 100g)")
+```
+
+Sodium QQ plot
+```{r}
+qqnorm(pizza$sodium, main = "QQ Plot of Sodium")
+qqline(pizza$sodium, col = "red")
+```
+
+Calories histogram
+```{r}
+ggplot(pizza, aes(x = cal)) +
+  geom_histogram(fill = "lightgreen", color = "black", bins = 20) +
+  labs(title = "Histogram of Calories", x = "Calories (per 100g)", y = "Count")
+```
+
+Calories boxplot
+```{r}
+ggplot(pizza, aes(y = cal)) +
+  geom_boxplot(fill = "purple", color = "black") +
+  labs(title = "Boxplot of Calories", y = "Calories (per 100g)")
+```
+
+Calories QQ plot
+```{r}
+qqnorm(pizza$cal, main = "QQ Plot of Calories")
+qqline(pizza$cal, col = "red")
+```
+
+# Question 5 
+**Plot a scatterplot (e.g. using `ggplot`) between `sodium` and `cal`, with points colored by `brand`.  Describe any interesting patterns revealed with this data visualization.**  
+
+```{r}
+ggplot(pizza, aes(x = sodium, y = cal, color = brand)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(title = "Scatterplot of Sodium vs Calories by Brand",
+       x = "Sodium (per 100g)", y = "Calories (per 100g)") +
+  theme_minimal()
+```
+
+# Question 6 
+**Plot a scatterplot (e.g. using `ggplot`) between `sodium` and `cal`, with points colored by `prot`.  Describe any interesting patterns revealed with this data visualization.  What major formatting difference do you see between this and the previous scatterplot?**
+ 
+Note: This will show a color gradient (continuous variable) instead of discrete brand colors.
+ 
+```{r}
+ggplot(pizza, aes(x = sodium, y = cal, color = prot)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(title = "Scatterplot of Sodium vs Calories by Protein",
+       x = "Sodium (per 100g)", y = "Calories (per 100g)", color = "Protein") +
+  theme_minimal()
+```
+
+# Question 7 
+**Make a plot with `sodium` as y, and `brand` as x. What kind of plot would you choose?  Why?  Describe any interesting patterns revealed with this data visualization.**  
+
+```{r}
+ggplot(pizza, aes(x = brand, y = sodium, fill = brand)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Sodium by Brand",
+       x = "Pizza Brand", y = "Sodium (per 100g)") +
+  theme_minimal()
+```
+
+# Question 8 
+**Use the `ezids::outlierKD2()` function to exclude outliers for `sodium`, then run the function again to exclude outliers on `cal`. Re-do the QQ plots for these two variables. Do you see much improvement in the normality?** 
+
+Removing sodium outliers
+```{r}
+pizza <- ezids::outlierKD2(pizza, sodium)
+```
+
+Removing calorie outliers
+```{r}
+pizza <- ezids::outlierKD2(pizza, cal)
+```
+
+New QQ plots
+```{r}
+qqnorm(pizza$sodium, main = "QQ Plot of Sodium (After Outlier Removal)")
+qqline(pizza$sodium, col = "red")
+
+qqnorm(pizza$cal, main = "QQ Plot of Calories (After Outlier Removal)")
+qqline(pizza$cal, col = "red")
+```

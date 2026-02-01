@@ -1,0 +1,128 @@
+---
+title: "HW 3: R and RMarkdown Basics"
+author: "Vidyullatha"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+library(ezids)
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(warning = F, message = F)
+# Can globally set option for number display format.
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+```
+
+# Question 1: Read-in the data.
+**Read in the file `BaseballHeightWeight.csv` as a data frame (e.g. using the `read.csv` function) and save it as `baseball`. Then display the structure of the data frame using the function `str`.**  
+```{r}
+baseball <- read.csv("BaseballHeightWeight.csv")
+str(baseball)
+```
+
+# Question 2: Quick look at the data frame.
+**Print out the first 5 and the last 3 rows of the data frame.**  
+
+#### First 5 rows
+
+```{r}
+head(baseball, 5)
+```
+
+#### Last 3 rows
+
+```{r}
+tail(baseball, 3)
+```
+
+# Question 3: Change variable/column names.
+**Change the headers/column names from `Weight.pounds.` to `weight`, from `Height.inches.` to `height`, and `Age` to `age`.**  
+```{r}
+names(baseball)[names(baseball) == "Weight.pounds."] <- "weight"
+names(baseball)[names(baseball) == "Height.inches."] <- "height"
+names(baseball)[names(baseball) == "Age"] <- "age"
+head(baseball, 1)
+```
+
+# Question 4: Quick look at the modified data frame.
+**Print out the first two lines again to see the new column names.**  
+```{r}
+head(baseball, 2)
+```
+
+# Question 5: Summary statistics.
+**Find the summary statistics for `height`, `weight`, and `age` of the players (e.g. using the function `summary`). For nicer formatting, you can try the `xkablesummary` function in the ezids package.**  
+
+#### Summary stats using standard 'summary' function : 
+
+```{r}
+summary(baseball[, c("height", "weight", "age")])
+```
+
+#### Summary stats using 'xkablesummary' function : 
+
+```{r}
+xkablesummary(baseball, "height")
+xkablesummary(baseball, "weight")
+xkablesummary(baseball, "age")
+```
+
+# Question 6: Identifying missing values.
+**How many observations having missing (NA) values for `weight`?**
+```{r}
+sum(is.na(baseball$weight))
+missing_values <- sum(is.na(baseball$weight))
+```
+`r missing_values` observation(s) have missing values (NA) for weight
+
+# Question 7: Defining a subset.
+**Define a new data frame that excludes the observation(s) with missing (NA) values for the `weight` (e.g. using the function `is.na`).  How many observations are in this new subset?  Use this data frame for the remaining questions.**  
+```{r}
+baseball_noNA <- baseball[!is.na(baseball$weight), ]
+nrow(baseball_noNA)
+```
+There are `r nrow(baseball_noNA)` observations in the new subset (where weight has no missing vlaues (NA))
+
+# Question 8: Defining a subset.
+**Define a new data frame that is a subset of the Question 7 data frame with only Team Washington players. Outside of the R chunk, state with text and inline R code the number of players on Team Washington.**
+```{r}
+washington <- subset(baseball_noNA, Team == "WAS")
+nrow(washington)
+```
+There are `r nrow(washington)` players on Team Washington.
+
+# Question 9: Defining a subset.
+**Define a new data frame that is a subset with (1) only Team Washington and (2) only players older than 28. How many observations are in this group?**
+```{r}
+washington_over28 <- subset(baseball_noNA, Team == "WAS" & age > 28)
+nrow(washington_over28)
+```
+There are `r nrow(washington_over28)` players on Team Washington who are older than 28.
+

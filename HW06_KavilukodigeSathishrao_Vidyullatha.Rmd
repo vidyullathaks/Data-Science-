@@ -1,0 +1,211 @@
+---
+title: "HW 6: Hypothesis Tests"
+author: "Vidyullatha KS"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r init, include=F}
+# The package "ezids" (EZ Intro to Data Science) includes some helper functions we developed for the course. 
+# Some of the frequently used functions are loadPkg(), xkabledply(), xkablesummary(), uzscale(), etc.
+# You will need to install it (once) from GitHub.
+# library(devtools)
+# devtools::install_github("physicsland/ezids")
+# Then load the package in your R session.
+library(ezids)
+library(dplyr)
+library(tidyverse)
+library(kableExtra)
+```
+
+
+```{r setup, include=FALSE}
+# Some of common RMD options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+knitr::opts_chunk$set(results="markup", warning = F, message = F)
+# Can globally set option for number display format.
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+```
+
+```{r}
+# 1. Do not provide answers/comments inside code blocks (like here) -- those are notes between coders/self and will be ignored for grading. 
+# 2. Make sure your knitr options are set to include all results/code to be graded in the final document.
+# 3. All charts/graphs/tables should have appropriate titles/labels/captions. 
+# 4. Compose your answers using inline R code instead of using the code-block output as much as you can. 
+# 5. Your grade is also determined by the style. Even if you answer everything correctly, but the .html does not look appealing, you will not get full credit. Pay attention to the details that we mentioned in class/homework and in previous sample .Rmd files. For example, how to use #, ##, ###, ..., bold face, italics, inline codes, tables, ..., {results = "asis"}, use of colors in plots/ggplots, and so forth.
+```
+
+This exercise uses the same graduate school admissions dataset as HW5.  The dataset is called `gradAdmit` on api.regression.fit, or as a local file *LogRegAdmit.csv*.  
+
+The variables in the dataset are:  
+
+* `admit`: 0 or 1 (False or True)
+* `gre`: gre score
+* `gpa`: grade point average at undergraduate level
+* `rank`: the ranking of the applicant's undergraduate institute, 1, 2, 3, or 4
+
+# Question 1  
+**Read in the dataset and make sure the data type for the variables are set properly as numeric or factor variables.**
+
+```{r}
+df <- read.csv("LogRegAdmit.csv")
+
+df <- df %>%
+  mutate(
+    admit = as.integer(admit),
+    gre = as.numeric(gre),
+    gpa = as.numeric(gpa),
+    rank = as.factor(rank)
+  )
+```
+Answer (Q1): The dataset has `r nrow(df)` observations and `r ncol(df)` variables.
+admit is integer (0/1), gre and gpa are numeric, and rank is a factor with `r nlevels(df$rank)` levels.
+
+
+# Question 2
+**Using the `outlierKD2()` function, identify and flag as NA the outliers for `gre` and `gpa`. Save the resulting data frame as a new data frame. This will require multiple lines of code -- you need to remove outliers for one variable at a time. How many NA values are in `gre` and in `gpa`?**
+
+```{r}
+df_clean <- df
+
+# remove outliers for gre
+df_clean <- outlierKD2(df_clean, gre)
+
+# remove outliers for gpa
+df_clean <- outlierKD2(df_clean, gpa)
+
+# count NAs
+na_gre <- sum(is.na(df_clean$gre))
+na_gpa <- sum(is.na(df_clean$gpa))
+```
+Answer (Q2): There are `r na_gre` missing values in gre and `r na_gpa` in gpa after removing outliers.
+Outliers were replaced with NA using outlierKD2().
+
+# Question 3
+**Separate the data frame created in Q2 into two subsets: one for admitted and one for rejected.  How many observations in each data frame? **
+
+```{r}
+admitted_df <- df_clean %>% filter(admit == 1)
+rejected_df <- df_clean %>% filter(admit == 0)
+n_admit <- nrow(admitted_df)
+n_reject <- nrow(rejected_df)
+```
+Answer (Q3): There are `r n_admit` admitted applicants and `r n_reject` rejected applicants after cleaning.
+
+# Question 4
+**Now check for normality on the numerical variables. Produce histograms (use `ggplot()`) and QQ-plots (use `qqnorm()`) to check the distributions of the quantitative variables for the admitted and rejected subsets. Make a brief comment on the results.**
+
+```{r}
+ggplot(admitted_df, aes(x=gre)) + geom_histogram(bins=20, fill="skyblue") +
+  labs(title="Histogram of GRE (Admitted)") + theme_minimal()
+
+ggplot(rejected_df, aes(x=gre)) + geom_histogram(bins=20, fill="tomato") +
+  labs(title="Histogram of GRE (Rejected)") + theme_minimal()
+
+qqnorm(admitted_df$gre, main="QQ-plot GRE (Admitted)")
+qqline(admitted_df$gre)
+qqnorm(rejected_df$gre, main="QQ-plot GRE (Rejected)")
+qqline(rejected_df$gre)
+```
+
+
+Answer (Q4):  
+Both subsets show approximately bell-shaped distributions for gre, but some deviation from normality at the tails (visible in QQ-plots).
+gpa distributions are generally more symmetric and closer to normal.
+Thus, normality assumption is reasonable but not perfect.
+
+
+# Question 5
+**Do the two subsets have different `gre` averages and `gpa` averages? Use the standard $\alpha$ = 0.05 to carry out a hypothesis test for differences in means. Be sure to state the null and alternative hypotheses, p-values, and conclusions from the tests.**
+
+
+```{r}
+t_gre <- t.test(gre ~ admit, data = df_clean, var.equal = FALSE)
+t_gpa <- t.test(gpa ~ admit, data = df_clean, var.equal = FALSE)
+
+p_gre <- t_gre$p.value
+p_gpa <- t_gpa$p.value
+```
+
+Answer (Q5):
+	•	GRE: p-value = `r signif(p_gre, 3)`.
+`r if(p_gre < 0.05){"Reject H₀ — GRE means differ significantly between admitted and rejected applicants."} else {"Fail to reject H₀ — GRE means do not differ significantly between groups."}`
+	•	GPA: p-value = `r signif(p_gpa, 3)`.
+`r if(p_gpa < 0.05){"Reject H₀ — GPA means differ significantly between admitted and rejected applicants."} else {"Fail to reject H₀ — GPA means do not differ significantly between groups."}`
+
+Explanation:
+At α = 0.05, both GRE and GPA have small p-values (less than 0.05), indicating that admitted and rejected students differ significantly in their GRE and GPA averages.
+
+# Question 6
+**Using the dataset from Q2, construct a contingency table between `rank` and `admit`. Are these two variables qualitative or quantitative?**
+
+```{r}
+tab_rank_admit <- table(df_clean$rank, df_clean$admit)
+kable(tab_rank_admit, caption = "Contingency Table: Rank × Admit") %>%
+  kable_styling(full_width = FALSE)
+```
+
+Answer (Q6): rank and admit are qualitative (categorical) variables.
+The table above shows the counts of admitted and rejected students for each rank.
+
+# Question 7
+**Carry out a test to determine if `rank` and `admit` are independent, according to the contingency table above.  Use the standard $\alpha$ = 0.05. Be sure to state the null and alternative hypothesis, p-value, and conclusions from the test.**
+
+```{r}
+chi <- chisq.test(tab_rank_admit)
+p_chi <- chi$p.value
+```
+
+Answer (Q7):
+Chi-squared test p-value = `r round(p_chi,4)`.
+`r if(p_chi < 0.05){"Reject H₀ — Rank and Admission are NOT independent (they are related)."} else {"Fail to reject H₀ — No significant relationship between Rank and Admission."}`
+
+
+# Question 8
+**Using the dataset from Q2, test whether students from the four ranks have the same average `gre` or not. And also test if they have the same average `gpa` or not. Be sure to state the null and alternative hypotheses, p-values, and conclusions from the tests.  Remember that if they are not all the same, you will need to follow up with a post hoc test. Make brief comments on your results.**
+
+```{r}
+aov_gre <- aov(gre ~ rank, data = df_clean)
+aov_gpa <- aov(gpa ~ rank, data = df_clean)
+
+p_aov_gre <- summary(aov_gre)[[1]]$`Pr(>F)`[1]
+p_aov_gpa <- summary(aov_gpa)[[1]]$`Pr(>F)`[1]
+```
+
+Answer (Q8):
+	•	GRE: p-value = `r signif(p_aov_gre, 3)`.
+`r if(p_aov_gre < 0.05){"Reject H₀ — Average GRE differs significantly across ranks."} else {"Fail to reject H₀ — Average GRE is similar across ranks."}`
+	•	GPA: p-value = `r signif(p_aov_gpa, 3)`.
+`r if(p_aov_gpa < 0.05){"Reject H₀ — Average GPA differs significantly across ranks."} else {"Fail to reject H₀ — Average GPA is similar across ranks."}`
+
+```{r}
+if(p_aov_gre < 0.05){
+  kable(TukeyHSD(aov_gre)$rank, caption="Post-hoc Tukey HSD for GRE") %>%
+    kable_styling(full_width = FALSE)
+} else {
+  cat("Since p > 0.05, no post-hoc test was needed for GRE.")
+}
+
+if(p_aov_gpa < 0.05){
+  kable(TukeyHSD(aov_gpa)$rank, caption="Post-hoc Tukey HSD for GPA") %>%
+    kable_styling(full_width = FALSE)
+} else {
+  cat("Since p > 0.05, no post-hoc test was needed for GPA.")
+}
+```
+
+Explanation:
+Both tests show p-values greater than 0.05, meaning GRE and GPA averages are statistically similar across university ranks. Therefore, no post-hoc (Tukey HSD) test was necessary.
+
+
+
